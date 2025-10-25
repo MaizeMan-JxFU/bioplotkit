@@ -1,7 +1,8 @@
 # from . import base
 from .pcshow import *
 from .manhanden import *
+from .LDBlock import *
 from .sci_set import *
 
-__name__ = 'Genotype Reader'
+__name__ = 'bioplotkit'
 __version__ = '1.0'
