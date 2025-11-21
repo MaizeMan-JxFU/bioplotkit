@@ -2,10 +2,12 @@
 name = "bioplotkit"
 version = "1.0.2"
 description = "A Python package for advanced biological data visualization."
-readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.7.0"
 dependencies = [
-    "numpy","scipy","matplotlib","pandas", # Base dependency
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "pandas", # Base dependency
     "adjustText", # For pcshow.py
 ]
 
