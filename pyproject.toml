@@ -1,6 +1,6 @@
 [project]
 name = "bioplotkit"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
     "numpy","scipy","matplotlib","pandas", # Base dependency
     "adjustText", # For pcshow.py

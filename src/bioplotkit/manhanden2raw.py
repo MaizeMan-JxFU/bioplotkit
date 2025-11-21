@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 from scipy.stats import beta
-import time
+
 
 def ppoints(n)->np.ndarray:
     '''
@@ -12,41 +12,33 @@ def ppoints(n)->np.ndarray:
     return np.arange(1,n+1)/(n+1)#(np.arange(1, n+1) - 0.5) / n
 
 class GWASPLOT:
-    def __init__(self,df:pd.DataFrame, chr:str='#CHROM', pos:str='POS', pvalue:str='p',interval_rate:int=.1,compression=True):
+    def __init__(self,df:pd.DataFrame, chr:str, pos:str, pvalue:str,interval_rate:int=.2):
         '''
         必须输入的项目df: 矩阵, chr: 染色体, pos: SNP位点, pvalue: 显著性
         '''
-        # DataFrame Compression 下采样
-        if compression:
-            cnum = df.shape[0] // 50_000 if df.shape[0]>=50_000 else 1 # 最终目标点数约为50k
-            cpvalue = 10_000/df.shape[0] # 设定阈值
-            df_cp = df.loc[df.sort_values(pvalue,ascending=False).iloc[:cnum*int(np.sum(df[pvalue]>cpvalue)//cnum),:].index].sort_index() # 过滤大多数阈值线以下的位点
-            minloc = np.argmin(df_cp[pvalue].values.reshape(int(df_cp.shape[0]/cnum),cnum),axis=1) # 每cnum个点中选取pvalue最小的点
-            self.minidx = df_cp.iloc[[int(i+idx*cnum) for idx,i in enumerate(minloc)]].index.to_list() + df[df[pvalue]<=cpvalue].index.to_list() # 保留位点索引
-        else:
-            self.minidx = df.index.to_list()
-        self.t_start = time.time()
         df = df[[chr, pos, pvalue]].copy()
+        df[chr] = df[chr].astype(int)
+        df[pos] = df[pos].astype(int)
         df = df.sort_values(by=[chr,pos])
-        self.chrlist = df[chr].unique()
+        chrlist = df[chr].unique()
         self.interval = int(interval_rate*df[pos].max())
         df['x'] = df[pos]
-        if len(self.chrlist)>1:
-            for ii in self.chrlist:
+        if len(chrlist)>1:
+            for ii in chrlist:
                 if ii > 1:
                     df.loc[df[chr]==ii,'x'] = df.loc[df[chr]==ii,'x']+df[df[chr]==ii-1]['x'].max()
         df['x'] = (df[chr]-1)*self.interval+df['x']
         df['y'] = df[pvalue]
         df['z'] = df[chr]
-        self.ticks_loc = df.groupby('z')['x'].mean()
+        self.chrlist = chrlist
+        self.ticks_loc = df.groupby('z')['x'].median()
         self.df = df.set_index([chr,pos])
         pass
     def manhattan(self, threshold:float=None, color_set:list=[], ax:plt.Axes = None, ignore:list=[]):
-        df = self.df.iloc[self.minidx,-3:].copy()
+        df = self.df.copy()
         df['y'] = -np.log10(df['y'])
-        df = df[df['y']>=0.5]
         if ax == None:
-            fig = plt.figure(figsize=[12,6], dpi=300)
+            fig = plt.figure(figsize=[12,6], dpi=600)
             gs = GridSpec(12, 1, figure=fig)
             ax = fig.add_subplot(gs[0:12,0])
         if len(color_set) == 0:
@@ -59,11 +51,13 @@ class GWASPLOT:
             ax.hlines(y=threshold, xmin=0, xmax=max(df['x']),color='grey', linewidth=1, alpha=1, linestyles='--')
         ax.set_xticks(self.ticks_loc, self.chrlist)
         ax.set_xlim([0-self.interval,max(df['x'])+self.interval])
-        ax.set_ylim([0.5,max(df['y'])+0.1*max(df['y'])])
+        ax.set_ylim([0,max(df['y'])+0.1*max(df['y'])])
         ax.set_xlabel('Chromosome')
         ax.set_ylabel('-log$_\mathdefault{10}$(p-value)')
+        # ax.spines['right'].set_visible(False)
+        # ax.spines['top'].set_visible(False)
         return ax
-    def qq(self, ax:plt.Axes = None, ci:int=95):
+    def qq(self, ax:plt.Axes = None, model:int='qbeta',ci:int=95):
         '''
         可选: bootstrap 抽样次数, ci置信区间(分位数)
         '''
@@ -76,21 +70,19 @@ class GWASPLOT:
         p = df['y'].dropna()
         n = len(p)
         # 计算分位数
-        o_e = p.sort_values().to_frame()
-        o_e['e'] = ppoints(n) # 生成理论分位数
-        o_e.columns = ['o','e']
-        o_e:pd.DataFrame = -np.log10(o_e.sort_index())
-        e_theoretical = o_e['e'].sort_values().values # 对于和性状不关联的位点，其pvalue相当于对均匀分布的随机抽样
-        
-        xi = np.ceil(10**(-e_theoretical)*n)
-        lower = -np.log10(beta.ppf(1 - ci/100,xi,n-xi+1))
-        upper = -np.log10(beta.ppf(ci/100,xi,n-xi+1))
-        # 绘制置信区间
-        ax.fill_between(e_theoretical, lower, upper, color='grey', alpha=0.4,rasterized=True)
-        
+        o = -np.log10(sorted(p))
+        # 生成理论分位数
+        e_p = ppoints(n)
+        e_theoretical = -np.log10(e_p) # 对于和性状不关联的位点，其pvalue相当于对均匀分布的随机抽样
+        if model is not None:
+            xi = np.ceil(10**(-e_theoretical)*n)
+            lower = -np.log10(beta.ppf(1 - ci/100,xi,n-xi+1))
+            upper = -np.log10(beta.ppf(ci/100,xi,n-xi+1))
+            # 绘制置信区间
+            ax.fill_between(e_theoretical, lower, upper, color='grey', alpha=0.4)
         # 绘制理论线（y=x）和观测点
-        ax.plot([0, np.max(o_e.values)], [0, np.max(o_e.values)], lw=1,)
-        ax.scatter(o_e.iloc[self.minidx,1], o_e.iloc[self.minidx,0], s=1, alpha=0.6,rasterized=True)
+        ax.plot([0, min(o.max(),e_theoretical.max())], [0, min(o.max(),e_theoretical.max())], lw=1,)
+        ax.scatter(e_theoretical, o, s=1, alpha=0.6,rasterized=True)
         ax.set_xlabel('Expected -log$_\mathdefault{10}$(p-value)')
         ax.set_ylabel('Observed -log$_\mathdefault{10}$(p-value)')
         return ax
