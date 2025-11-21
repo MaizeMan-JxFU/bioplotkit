@@ -61,7 +61,7 @@ class GWASPLOT:
         ax.set_xlim([0-self.interval,max(df['x'])+self.interval])
         ax.set_ylim([0.5,max(df['y'])+0.1*max(df['y'])])
         ax.set_xlabel('Chromosome')
-        ax.set_ylabel(r'-log$_\mathdefault{10}$(p-value)')
+        ax.set_ylabel('-log10(p-value)')
         return ax
     def qq(self, ax:plt.Axes = None, ci:int=95):
         '''
@@ -69,7 +69,6 @@ class GWASPLOT:
         '''
         df = self.df.copy()
         if ax == None:
-            plt.rc('font', family='Times New Roman')
             fig = plt.figure(figsize=[12,6], dpi=600)
             gs = GridSpec(12, 1, figure=fig)
             ax = fig.add_subplot(gs[0:12,0])
@@ -89,13 +88,12 @@ class GWASPLOT:
         ax.fill_between(e_theoretical, lower, upper, color='grey', alpha=0.4,rasterized=True)
         
         # 绘制理论线（y=x）和观测点
-        ax.plot([0, np.max(o_e.values)], [0, np.max(o_e.values)], lw=1,)
+        ax.plot([0, np.min(o_e.max(axis=0))], [0, np.min(o_e.max(axis=0))], lw=1,)
         ax.scatter(o_e.iloc[self.minidx,1], o_e.iloc[self.minidx,0], s=1, alpha=0.6,rasterized=True)
-        ax.set_xlabel(r'Expected -log$_\mathdefault{10}$(p-value)')
-        ax.set_ylabel(r'Observed -log$_\mathdefault{10}$(p-value)')
+        ax.set_xlabel('Expected -log10(p-value)')
+        ax.set_ylabel('Observed -log10(p-value)')
         return ax
     
-
 
 def cal_PVE(df:pd.DataFrame, N:int, beta:str='beta', se_beta:str='se', maf:str='af', n_miss:str='n_miss'):
     '''
